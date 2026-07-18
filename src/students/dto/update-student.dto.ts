@@ -1,0 +1,8 @@
+// src/students/dto/update-student.dto.ts
+import { PartialType } from '@nestjs/mapped-types';
+import { CreateStudentDto } from './create-student.dto';
+
+export class UpdateStudentDto extends PartialType(CreateStudentDto) {
+  // 🚨 ประกาศเพิ่มตรงนี้ด้วย เผื่อกรณี PartialType ตรวจจับไม่เจอ
+  email?: string;
+}
