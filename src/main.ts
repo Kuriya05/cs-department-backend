@@ -11,6 +11,17 @@ import express from 'express';
 // 🆕 1. สร้าง Instance ของ Express รอไว้ข้างนอก
 const server = express();
 
+// 🟢 [เพิ่มเติม]: เปลี่ยนหน้า "Cannot GET /" ให้กลายเป็นหน้า Health Check สวยๆ บอกสถานะระบบ
+server.get('/', (req, res) => {
+  res.status(200).json({
+    status: 'online',
+    message: '🚀 CS Department MIS API is running smoothly on Vercel!',
+    environment: process.env.VERCEL ? 'Production (Cloud Serverless)' : 'Local Development',
+    documentation: '/docs',
+    timestamp: new Date().toISOString()
+  });
+});
+
 async function bootstrap() {
   // 🆕 2. ใช้ ExpressAdapter ครอบตัวแอป NestJS เอาไว้
   const app = await NestFactory.create(AppModule, new ExpressAdapter(server));
