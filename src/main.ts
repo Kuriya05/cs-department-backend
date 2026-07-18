@@ -58,7 +58,7 @@ async function bootstrap() {
     }),
   );
 
-  // 🌍 6. ระบบ CORS (ปรับปรุงให้รองรับทั้ง Localhost และ Production บน Render ได้อย่างเสถียร)
+  // 🌍 6. ระบบ CORS (ปรับปรุงให้รองรับการทำงานร่วมกับ Frontend อย่างเสถียร)
   const rawFrontendUrls = configService.get<string>('FRONTEND_URL') || '';
   const allowedOrigins: string[] = [
     'http://localhost:3000', 
@@ -67,22 +67,27 @@ async function bootstrap() {
     'http://127.0.0.1:3001'
   ];
 
+  // ตัดช่องว่าง และลบเครื่องหมาย / ที่ปิดท้าย URL ออกอัตโนมัติ เพื่อป้องกัน CORS Error
   if (rawFrontendUrls && rawFrontendUrls !== '*') {
-    const prodOrigins = rawFrontendUrls.split(',').map(url => url.trim());
+    const prodOrigins = rawFrontendUrls
+      .split(',')
+      .map(url => url.trim().replace(/\/$/, '')); 
     allowedOrigins.push(...prodOrigins);
   }
 
   app.enableCors({
     origin: (origin, callback) => {
-      // อนุญาตถ้า: ไม่มี origin (เช่น ยิงจาก Postman) หรือ origin อยู่ในรายการที่กำหนด หรือตั้งค่า FRONTEND_URL=* ไว้
-      if (!origin || allowedOrigins.includes(origin) || rawFrontendUrls === '*') {
+      // โดเมนเบราว์เซอร์ส่งมาจะไม่มี / ปิดท้ายอยู่แล้ว
+      const formattedOrigin = origin ? origin.trim().replace(/\/$/, '') : '';
+      
+      if (!origin || allowedOrigins.includes(formattedOrigin) || rawFrontendUrls === '*') {
         callback(null, true);
       } else {
         callback(new Error(`Origin ${origin} not allowed by CORS`));
       }
     },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS', 
-    credentials: true, // เปิดไว้เพื่อให้ระบบสามารถรับส่ง Token / Authorization Header ข้ามโดเมนได้ปลอดภัย
+    credentials: true, // รองรับการส่ง Cookie / Authorization Headers ข้ามโดเมน
   });
 
   // 📚 7. ระบบคู่มือ API (Swagger UI) 
@@ -111,7 +116,6 @@ async function bootstrap() {
 
   // 🚀 8. รันเซิร์ฟเวอร์
   const port = process.env.PORT || 3001;
-  // 💡 ข้อควรระวัง: บน Render ห้ามลบคำว่า '0.0.0.0' เด็ดขาด เพื่อให้ภายนอกสามารถยิงเชื่อมต่อพอร์ตเข้ามาได้
   await app.listen(port, '0.0.0.0');
   
   logger.log(`==========================================================`);
