@@ -11,17 +11,6 @@ import express from 'express';
 // 🆕 1. สร้าง Instance ของ Express รอไว้ข้างนอก
 const server = express();
 
-// 🟢 [เพิ่มเติม]: เปลี่ยนหน้า "Cannot GET /" ให้กลายเป็นหน้า Health Check สวยๆ บอกสถานะระบบ
-server.get('/', (req, res) => {
-  res.status(200).json({
-    status: 'online',
-    message: '🚀 CS Department MIS API is running smoothly on Vercel!',
-    environment: process.env.VERCEL ? 'Production (Cloud Serverless)' : 'Local Development',
-    documentation: '/docs',
-    timestamp: new Date().toISOString()
-  });
-});
-
 async function bootstrap() {
   // 🆕 2. ใช้ ExpressAdapter ครอบตัวแอป NestJS เอาไว้
   const app = await NestFactory.create(AppModule, new ExpressAdapter(server));
@@ -40,7 +29,6 @@ async function bootstrap() {
           scriptSrc: [`'self'`, `'unsafe-inline'`], 
         },
       },
-      // 🟢 ปลดล็อกเพื่อให้หน้าบ้าน Next.js สามารถดึง API ข้าม Domain ได้
       crossOriginResourcePolicy: { policy: 'cross-origin' },
     }),
   );
@@ -51,6 +39,18 @@ async function bootstrap() {
 
   // 🌐 3. ตั้งค่า Prefix ให้ API
   app.setGlobalPrefix('api/v1');
+
+  // 🟢 [แผนสอง - ชัวร์กว่าเดิม]: ดักหน้าแรกผ่าน HttpAdapter ของ NestJS ตรงนี้เลย 
+  // มันจะไม่โดนระบบลบ และไม่ติด prefix /api/v1 ด้วยครับ
+  app.getHttpAdapter().get('/', (req, res) => {
+    res.status(200).json({
+      status: 'online',
+      message: '🚀 CS Department MIS API is running smoothly on Vercel!',
+      environment: process.env.VERCEL ? 'Production (Cloud Serverless)' : 'Local Development',
+      documentation: '/docs',
+      timestamp: new Date().toISOString()
+    });
+  });
 
   // 🛡️ 4. เปิดใช้งาน DTO Validation ระดับ Global
   app.useGlobalPipes(
@@ -66,11 +66,9 @@ async function bootstrap() {
   let allowedOrigins: (string | RegExp)[] = ['http://localhost:3000', 'http://127.0.0.1:3000'];
 
   if (rawFrontendUrls) {
-    // ดึงลิตส์ URL หน้าบ้านจริง ๆ มาใส่เพิ่มในรายการที่อนุญาต
     const prodOrigins = rawFrontendUrls.split(',').map(url => url.trim());
     allowedOrigins = [...allowedOrigins, ...prodOrigins];
   } else if (process.env.VERCEL) {
-    // 💡 ป้องกันกรณีลืมเซ็ตตัวแปร: ถ้าอยู่บน Vercel ยอมรับทุกโดเมนชั่วคราวเพื่อให้ระบบไม่พัง
     app.enableCors({
       origin: true,
       methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
@@ -78,7 +76,6 @@ async function bootstrap() {
     });
   }
 
-  // ใช้ค่าที่ตั้งไว้ถ้าไม่ใช่เงื่อนไขพิเศษด้านบน
   if (!process.env.VERCEL || rawFrontendUrls) {
     app.enableCors({
       origin: allowedOrigins, 
