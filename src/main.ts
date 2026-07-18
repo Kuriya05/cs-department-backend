@@ -5,7 +5,8 @@ import { ValidationPipe, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
-import express from 'express';
+// 🟢 [แก้ไขแล้ว]: เปลี่ยนจาก import express เฉย ๆ เป็น import * as express
+import * as express from 'express'; 
 
 async function bootstrap() {
   // 🟢 กลับมาใช้การสร้างแอปแบบปกติ ไม่ต้องมี ExpressAdapter ครอบแล้ว
@@ -30,6 +31,7 @@ async function bootstrap() {
   );
 
   // 📦 2. จำกัดขนาด JSON Payload
+  // (ตอนนี้โค้ดบรรทัดนี้จะทำงานได้ปกติ ไม่ติด Error แล้วครับ)
   app.use(express.json({ limit: '10mb' })); 
   app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
