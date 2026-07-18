@@ -4,11 +4,16 @@ import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { ExpressAdapter } from '@nestjs/platform-express'; // 🆕 ดึงมาเพื่อแปลงระบบให้รองรับ Serverless
 import helmet from 'helmet';
 import * as express from 'express'; 
 
+// 🆕 1. สร้าง Instance ของ Express รอไว้ข้างนอก เพื่อส่งต่อให้ Vercel เรียกใช้งาน
+const server = express();
+
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // 🆕 2. เปลี่ยนมาใช้ ExpressAdapter ครอบตัวแอป NestJS เอาไว้
+  const app = await NestFactory.create(AppModule, new ExpressAdapter(server));
   
   const logger = new Logger('Bootstrap'); 
   const configService = app.get(ConfigService);
@@ -24,7 +29,7 @@ async function bootstrap() {
           scriptSrc: [`'self'`, `'unsafe-inline'`], 
         },
       },
-      // 🟢 [แก้ไขจุดพังที่ 1]: ปลดล็อกเพื่อให้หน้าบ้าน Next.js สามารถดึง API ข้าม Domain ได้โดยไม่โดนเบราว์เซอร์บล็อก
+      // 🟢 ปลดล็อกเพื่อให้หน้าบ้าน Next.js สามารถดึง API ข้าม Domain ได้โดยไม่โดนเบราว์เซอร์บล็อก
       crossOriginResourcePolicy: { policy: 'cross-origin' },
     }),
   );
@@ -52,7 +57,7 @@ async function bootstrap() {
   if (rawFrontendUrls) {
     allowedOrigins = rawFrontendUrls.split(',').map(url => url.trim());
   } else {
-    // 🟢 [แก้ไขจุดพังที่ 2]: ถ้าไม่ได้ระบุใน .env ให้เปิดทั้ง localhost และ 127.0.0.1 ครอบคลุมทุกสภาวะ Network ในเครื่อง Dev
+    // 🟢 ถ้าไม่ได้ระบุใน .env ให้เปิดทั้ง localhost และ 127.0.0.1 ครอบคลุมทุกสภาวะ Network ในเครื่อง Dev
     allowedOrigins = ['http://localhost:3000', 'http://127.0.0.1:3000'];
   }
 
@@ -90,16 +95,25 @@ async function bootstrap() {
   // 🛑 7. เปิด Graceful Shutdown Hooks
   app.enableShutdownHooks();
 
-  // 🚀 8. รันเซิร์ฟเวอร์
-  const port = parseInt(configService.get<string>('PORT') || '3001', 10);
-  await app.listen(port);
-  
-  // พ่น Log ตรวจสอบสถานะการเชื่อมต่อ
-  logger.log(`==========================================================`);
-  logger.log(`🚀 API Server Status      : ACTIVE`);
-  logger.log(`🌐 Base API URL           : http://localhost:${port}/api/v1`);
-  logger.log(`📚 Swagger Document UI    : http://localhost:${port}/docs`);
-  logger.log(`🌍 Allowed Frontend CORS  : ${allowedOrigins.join(', ')}`);
-  logger.log(`==========================================================`);
+  // 🚀 8. รันเซิร์ฟเวอร์ (แยกเงื่อนไขรันสลับระหว่างเครื่องเรา กับ Cloud บน Vercel)
+  if (process.env.VERCEL) {
+    // ☁️ ถ้าทำงานอยู่บน Vercel ให้ทำการ Init ตัวระบบเงียบ ๆ (Vercel จะแจกจ่ายพอร์ตและรัน Serverless ให้เอง)
+    await app.init();
+  } else {
+    // 💻 ถ้ารันบนเครื่องตัวเอง (Local Dev) ให้เปิด Listen พอร์ตตามปกติ
+    const port = parseInt(configService.get<string>('PORT') || '3001', 10);
+    await app.listen(port);
+    
+    // พ่น Log ตรวจสอบสถานะการเชื่อมต่อ
+    logger.log(`==========================================================`);
+    logger.log(`🚀 API Server Status    : ACTIVE (Local Dev Mode)`);
+    logger.log(`🌐 Base API URL         : http://localhost:${port}/api/v1`);
+    logger.log(`📚 Swagger Document UI  : http://localhost:${port}/docs`);
+    logger.log(`🌍 Allowed Frontend CORS: ${allowedOrigins.join(', ')}`);
+    logger.log(`==========================================================`);
+  }
 }
 bootstrap();
+
+// 🆕 3. ส่งออก (Export) ตัวเซิร์ฟเวอร์เพื่อให้ Vercel ตื่นขึ้นมาเรียกใช้งานในรูปแบบ Serverless Function
+export default server;
