@@ -6,7 +6,7 @@ import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ExpressAdapter } from '@nestjs/platform-express'; // 🆕 ดึงมาเพื่อแปลงระบบให้รองรับ Serverless
 import helmet from 'helmet';
-import * as express from 'express'; 
+import express from 'express'; // 🟢 [แก้ไขจุดพัง]: เปลี่ยนเป็น Default Import เพื่อให้ Vercel เรียกใช้งานเป็นฟังก์ชันได้
 
 // 🆕 1. สร้าง Instance ของ Express รอไว้ข้างนอก เพื่อส่งต่อให้ Vercel เรียกใช้งาน
 const server = express();
