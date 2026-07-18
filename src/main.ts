@@ -13,7 +13,7 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap'); 
   const configService = app.get(ConfigService);
 
-  // 🛡️ 1. ติดตั้ง Helmet Security Headers (ปรับให้ยืดหยุ่นขึ้นสำหรับ Swagger UI บน Production)
+  // 🛡️ 1. ติดตั้ง Helmet Security Headers (ปรับคอนฟิกให้เสถียรสำหรับ Swagger บน Production)
   app.use(
     helmet({
       contentSecurityPolicy: {
@@ -25,6 +25,7 @@ async function bootstrap() {
         },
       },
       crossOriginResourcePolicy: { policy: 'cross-origin' },
+      crossOriginEmbedderPolicy: false, // 💡 สำคัญมากสำหรับ Render: ปิดเพื่อให้ Swagger UI โหลดโมดูลทำงานได้ปกติ ไม่เกิดปัญหาหน้าขาว
     }),
   );
 
@@ -33,12 +34,11 @@ async function bootstrap() {
   app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
   // 🌐 3. ตั้งค่า Prefix ให้ API 
-  // 🟢 [แก้ไข]: แยกหน้า Docs และ Health Check ออกจากการโดน Prefix ครอบ
   app.setGlobalPrefix('api/v1', {
     exclude: ['/', 'docs'],
   });
 
-  // 🟢 4. หน้าต้อนรับ Health Check (เข้าผ่านพาร์ทนอกสุด http://...onrender.com/ ได้เลย)
+  // 🟢 4. หน้าต้อนรับ Health Check (Render จะใช้หน้านี้เช็กสถานะบ่อย ๆ เพื่อดูว่าแอปยังออนไลน์อยู่ไหม)
   app.getHttpAdapter().get('/', (req, res) => {
     res.status(200).json({
       status: 'online',
@@ -58,28 +58,31 @@ async function bootstrap() {
     }),
   );
 
-  // 🌍 6. ระบบ CORS 
-  // 🟢 [แก้ไข]: เพิ่มให้รองรับ localhost ทั้งพอร์ต 3000 และ 3001 (Next.js) และยืดหยุ่นขึ้นใน Production
+  // 🌍 6. ระบบ CORS (ปรับปรุงให้รองรับทั้ง Localhost และ Production บน Render ได้อย่างเสถียร)
   const rawFrontendUrls = configService.get<string>('FRONTEND_URL') || '';
-  let allowedOrigins: (string | RegExp)[] = [
+  const allowedOrigins: string[] = [
     'http://localhost:3000', 
     'http://127.0.0.1:3000',
     'http://localhost:3001',
     'http://127.0.0.1:3001'
   ];
 
-  if (rawFrontendUrls) {
+  if (rawFrontendUrls && rawFrontendUrls !== '*') {
     const prodOrigins = rawFrontendUrls.split(',').map(url => url.trim());
-    allowedOrigins = [...allowedOrigins, ...prodOrigins];
-  } else {
-    // 💡 ป้องกันกรณีลืมตั้งค่าบน Render: ยอมรับชั่วคราวเพื่อให้ข้อมูลไม่โล่ง
-    allowedOrigins = '*'; 
+    allowedOrigins.push(...prodOrigins);
   }
 
   app.enableCors({
-    origin: allowedOrigins, 
+    origin: (origin, callback) => {
+      // อนุญาตถ้า: ไม่มี origin (เช่น ยิงจาก Postman) หรือ origin อยู่ในรายการที่กำหนด หรือตั้งค่า FRONTEND_URL=* ไว้
+      if (!origin || allowedOrigins.includes(origin) || rawFrontendUrls === '*') {
+        callback(null, true);
+      } else {
+        callback(new Error(`Origin ${origin} not allowed by CORS`));
+      }
+    },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS', 
-    credentials: allowedOrigins === '*' ? false : true, // ถ้าเป็น '*' ต้องปิด credentials ไม่งั้น browser จะบล็อก
+    credentials: true, // เปิดไว้เพื่อให้ระบบสามารถรับส่ง Token / Authorization Header ข้ามโดเมนได้ปลอดภัย
   });
 
   // 📚 7. ระบบคู่มือ API (Swagger UI) 
@@ -106,8 +109,9 @@ async function bootstrap() {
 
   app.enableShutdownHooks();
 
-  // 🚀 8. รันเซิร์ฟเวอร์บนพอร์ตที่ Render กำหนดให้
+  // 🚀 8. รันเซิร์ฟเวอร์
   const port = process.env.PORT || 3001;
+  // 💡 ข้อควรระวัง: บน Render ห้ามลบคำว่า '0.0.0.0' เด็ดขาด เพื่อให้ภายนอกสามารถยิงเชื่อมต่อพอร์ตเข้ามาได้
   await app.listen(port, '0.0.0.0');
   
   logger.log(`==========================================================`);

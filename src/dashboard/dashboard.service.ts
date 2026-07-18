@@ -1,3 +1,4 @@
+// src/dashboard/dashboard.service.ts
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -19,22 +20,32 @@ export class DashboardService {
    */
   async getQuickStats() {
     // รันคิวรีพร้อมกันแบบ Parallel เพื่อประหยัดเวลา Response
-    const [totalStudents, totalLecturers, totalCourses, gpaResult] = await Promise.all([
+    const [totalStudents, totalLecturers, totalCourses, gpaResult, popularMajorResult] = await Promise.all([
       this.studentModel.countDocuments().exec(),
       this.lecturerModel.countDocuments({ status: 'Active' }).exec(),
       this.courseModel.countDocuments().exec(),
+      // หาค่าเฉลี่ย GPA
       this.studentModel.aggregate([
         { $group: { _id: null, avgGpa: { $avg: '$gpa' } } }
+      ]).exec(),
+      // 🎯 เพิ่มการหาโมเดลสาขายอดนิยม (จัดกลุ่มตาม major -> นับจำนวน -> เรียงจากมากไปน้อย -> เอาอันดับ 1)
+      this.studentModel.aggregate([
+        { $group: { _id: '$major', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 1 }
       ]).exec()
     ]);
 
     const avgGPA = gpaResult[0]?.avgGpa || 0;
+    // ดึงชื่อสาขาที่ฮิตที่สุด ถ้าไม่มีเด็กเลยให้แสดงเป็น 'N/A' หรือ 'Computer Science'
+    const popularMajors = popularMajorResult[0]?._id || 'Computer Science';
 
     return {
       totalStudents,
       totalLecturers,
       totalCourses,
       avgGpa: parseFloat(avgGPA.toFixed(2)),
+      popularMajors, // 💡 ส่งค่านี้กลับไปด้วย เพื่อป้องกันหน้าบ้านเกิดข้อผิดพลาด TypeError
     };
   }
 

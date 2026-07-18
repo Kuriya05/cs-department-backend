@@ -1,21 +1,37 @@
+// src/students/students.controller.ts
 import { Controller, Get, Post, Body, Query, Patch, Param, Delete } from '@nestjs/common';
 import { StudentsService } from './students.service';
 import { CreateStudentDto } from './dto/create-student.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
 
-@Controller('students') // จะกลายเป็น /api/v1/students อัตโนมัติ
+@Controller('students') // จะกลายเป็น /api/v1/students อัตโนมัติเมื่อรวมกับ Global Prefix
 export class StudentsController {
   constructor(private readonly studentsService: StudentsService) {}
 
-  @Post()
-  async create(@Body() createStudentDto: CreateStudentDto) {
-    return this.studentsService.create(createStudentDto);
+  // ==========================================
+  // 📌 1. STATIC PATHS (เอาเราท์ที่เป็นคำตายตัวไว้บนสุดเสมอ)
+  // ==========================================
+
+  // 📊 เราท์สถิติแดชบอร์ดระดับสูง (ยิงมาที่ /api/v1/students/dashboard/analytics)
+  // 💡 ย้ายมาไว้ด้านบนสุด เพื่อป้องกันไม่ให้ Router ของ Express/NestJS สับสนกับเราท์อื่น
+  @Get('dashboard/analytics')
+  async getAnalytics() {
+    return this.studentsService.getRiskSummaryStats();
   }
 
   // ⚡ เพิ่มเราท์สำหรับรับคำสั่ง Seed จากหน้าบ้านโดยตรง
   @Post('seed')
   async seedData(@Body() body: { data: any[] }) {
     return this.studentsService.seedBulk(body.data);
+  }
+
+  // ==========================================
+  // 📌 2. GENERAL & DYNAMIC PATHS (พวกเราท์ทั่วไปและพวกที่มี Parameter)
+  // ==========================================
+
+  @Post()
+  async create(@Body() createStudentDto: CreateStudentDto) {
+    return this.studentsService.create(createStudentDto);
   }
 
   @Get()
@@ -37,12 +53,7 @@ export class StudentsController {
     });
   }
 
-  // 📊 เราท์สถิติแดชบอร์ดระดับสูง (ยิงมาที่ /api/v1/students/dashboard/analytics)
-  @Get('dashboard/analytics')
-  async getAnalytics() {
-    return this.studentsService.getRiskSummaryStats();
-  }
-
+  // 💡 เอาเราท์ที่มี Dynamic Parameter (:idOrStudentId) ไว้ล่างสุดของกลุ่ม HTTP Method เดียวกัน
   @Get(':idOrStudentId')
   async findOne(@Param('idOrStudentId') idOrStudentId: string) {
     return this.studentsService.findOne(idOrStudentId);

@@ -8,12 +8,14 @@ import {
 } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
 
-@Controller('api/dashboard') // 🛠️ ปรับให้ตรงกับหน้าบ้าน: http://localhost:3001/api/dashboard
+// 🎯 แก้ไข: ลบคำว่า api/ ออก ให้เหลือแค่ 'dashboard' 
+// เพื่อให้ URL ออกมาเป็น /api/v1/dashboard/stats ตรงตามที่หน้าบ้านเรียกใช้งาน
+@Controller('dashboard') 
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
   /**
-   * ⚡ 1. GET /api/dashboard/stats
+   * ⚡ 1. GET /api/v1/dashboard/stats
    * Endpoint หลักที่หน้าบ้าน Next.js ยิงมาขอสถิติแบบ Real-time
    */
   @Get('stats')
@@ -24,7 +26,7 @@ export class DashboardController {
   }
 
   /**
-   * 📊 2. GET /api/dashboard
+   * 📊 2. GET /api/v1/dashboard
    * รองรับการกรองข้อมูลตามปีการศึกษาและภาคเรียน (สำหรับฟีเจอร์ขั้นสูงในอนาคต)
    */
   @Get()
