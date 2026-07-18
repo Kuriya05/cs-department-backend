@@ -4,16 +4,12 @@ import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { ExpressAdapter } from '@nestjs/platform-express'; 
 import helmet from 'helmet';
-import express from 'express'; 
-
-// 🆕 1. สร้าง Instance ของ Express รอไว้ข้างนอก
-const server = express();
+import express from 'express';
 
 async function bootstrap() {
-  // 🆕 2. ใช้ ExpressAdapter ครอบตัวแอป NestJS เอาไว้
-  const app = await NestFactory.create(AppModule, new ExpressAdapter(server));
+  // 🟢 กลับมาใช้การสร้างแอปแบบปกติ ไม่ต้องมี ExpressAdapter ครอบแล้ว
+  const app = await NestFactory.create(AppModule);
   
   const logger = new Logger('Bootstrap'); 
   const configService = app.get(ConfigService);
@@ -40,19 +36,18 @@ async function bootstrap() {
   // 🌐 3. ตั้งค่า Prefix ให้ API
   app.setGlobalPrefix('api/v1');
 
-  // 🟢 [แผนสอง - ชัวร์กว่าเดิม]: ดักหน้าแรกผ่าน HttpAdapter ของ NestJS ตรงนี้เลย 
-  // มันจะไม่โดนระบบลบ และไม่ติด prefix /api/v1 ด้วยครับ
+  // 🟢 4. หน้าต้อนรับ Health Check เก๋ ๆ (สำหรับเช็กหน้าแรกบน Render)
   app.getHttpAdapter().get('/', (req, res) => {
     res.status(200).json({
       status: 'online',
-      message: '🚀 CS Department MIS API is running smoothly on Vercel!',
-      environment: process.env.VERCEL ? 'Production (Cloud Serverless)' : 'Local Development',
+      message: '🚀 CS Department MIS API is running smoothly on Render!',
+      environment: 'Production (Render Web Service)',
       documentation: '/docs',
       timestamp: new Date().toISOString()
     });
   });
 
-  // 🛡️ 4. เปิดใช้งาน DTO Validation ระดับ Global
+  // 🛡️ 5. เปิดใช้งาน DTO Validation ระดับ Global
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true, 
@@ -61,30 +56,22 @@ async function bootstrap() {
     }),
   );
 
-  // 🌍 5. ปรับปรุงระบบ CORS ให้ยืดหยุ่นและปลอดภัยสูงขึ้น
+  // 🌍 6. ระบบ CORS
   const rawFrontendUrls = configService.get<string>('FRONTEND_URL') || '';
   let allowedOrigins: (string | RegExp)[] = ['http://localhost:3000', 'http://127.0.0.1:3000'];
 
   if (rawFrontendUrls) {
     const prodOrigins = rawFrontendUrls.split(',').map(url => url.trim());
     allowedOrigins = [...allowedOrigins, ...prodOrigins];
-  } else if (process.env.VERCEL) {
-    app.enableCors({
-      origin: true,
-      methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-      credentials: true,
-    });
   }
 
-  if (!process.env.VERCEL || rawFrontendUrls) {
-    app.enableCors({
-      origin: allowedOrigins, 
-      methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS', 
-      credentials: true, 
-    });
-  }
+  app.enableCors({
+    origin: allowedOrigins, 
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS', 
+    credentials: true, 
+  });
 
-  // 📚 6. ระบบคู่มือ API (Swagger UI) 
+  // 📚 7. ระบบคู่มือ API (Swagger UI) 
   const config = new DocumentBuilder()
     .setTitle('CS Department MIS API')
     .setDescription('ระบบสารสนเทศภาควิชา')
@@ -106,20 +93,16 @@ async function bootstrap() {
     swaggerOptions: { persistAuthorization: true },
   }); 
 
-  // 🛑 7. เปิด Graceful Shutdown Hooks
   app.enableShutdownHooks();
 
-  // 🚀 8. รันเซิร์ฟเวอร์
-  if (process.env.VERCEL) {
-    await app.init();
-  } else {
-    const port = parseInt(configService.get<string>('PORT') || '3001', 10);
-    await app.listen(port);
-    logger.log(`🚀 API Server Status     : ACTIVE (Local Dev Mode)`);
-    logger.log(`🌐 Base API URL          : http://localhost:${port}/api/v1`);
-  }
+  // 🚀 8. รันเซิร์ฟเวอร์บนพอร์ตที่ Render กำหนดให้
+  // (สำคัญมาก: บน Render ต้องใส่ '0.0.0.0' เพื่อให้ภายนอกเชื่อมต่อเข้ามาได้)
+  const port = process.env.PORT || 3001;
+  await app.listen(port, '0.0.0.0');
+  
+  logger.log(`==========================================================`);
+  logger.log(`🚀 API Server is running on port: ${port}`);
+  logger.log(`🌐 Health Check URL: http://localhost:${port}/`);
+  logger.log(`==========================================================`);
 }
 bootstrap();
-
-// 🆕 3. ส่งออกตัวเซิร์ฟเวอร์ให้ Vercel Serverless รัน
-export default server;
